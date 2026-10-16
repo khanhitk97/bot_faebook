@@ -14,66 +14,53 @@ ctk.set_default_color_theme("blue")
 HISTORY_FILE = "history.json"
 
 # ==========================================
-# 1. HỆ THỐNG MÔ PHỎNG HÀNH VI SINH HỌC
+# 1. BỘ MÔ PHỎNG HÀNH VI CHUẨN XÁC
 # ==========================================
 class HumanSimulator:
     @staticmethod
-    def bezier_curve(p0, p1, p2, p3, num_points=25):
-        """Tạo đường cong Bezier bậc 3 mô phỏng quỹ đạo tự nhiên của tay người"""
+    def bezier_curve(p0, p1, p2, p3, num_points=20):
         t = np.linspace(0, 1, num_points)
-        curve = (
+        return (
             (1 - t) ** 3 * p0
             + 3 * (1 - t) ** 2 * t * p1
             + 3 * (1 - t) * t ** 2 * p2
             + t ** 3 * p3
         )
-        return curve
 
     @classmethod
     def move_mouse_naturally(cls, page, target_x, target_y):
-        """Di chuyển trỏ chuột theo đường cong có gia tốc mềm mại"""
-        start_x = random.randint(150, 450)
-        start_y = random.randint(150, 450)
+        try:
+            start_x = random.randint(200, 500)
+            start_y = random.randint(200, 500)
 
-        ctrl_x1 = start_x + (target_x - start_x) * random.uniform(0.1, 0.4) + random.randint(-40, 40)
-        ctrl_y1 = start_y + (target_y - start_y) * random.uniform(0.1, 0.4) + random.randint(-40, 40)
-        ctrl_x2 = start_x + (target_x - start_x) * random.uniform(0.6, 0.9) + random.randint(-40, 40)
-        ctrl_y2 = start_y + (target_y - start_y) * random.uniform(0.6, 0.9) + random.randint(-40, 40)
+            ctrl_x1 = start_x + (target_x - start_x) * random.uniform(0.2, 0.4)
+            ctrl_y1 = start_y + (target_y - start_y) * random.uniform(0.1, 0.3)
+            ctrl_x2 = start_x + (target_x - start_x) * random.uniform(0.6, 0.8)
+            ctrl_y2 = start_y + (target_y - start_y) * random.uniform(0.7, 0.9)
 
-        curve_x = cls.bezier_curve(start_x, ctrl_x1, ctrl_x2, target_x)
-        curve_y = cls.bezier_curve(start_y, ctrl_y1, ctrl_y2, target_y)
+            curve_x = cls.bezier_curve(start_x, ctrl_x1, ctrl_x2, target_x)
+            curve_y = cls.bezier_curve(start_y, ctrl_y1, ctrl_y2, target_y)
 
-        for x, y in zip(curve_x, curve_y):
-            page.mouse.move(float(x), float(y))
-            time.sleep(random.uniform(0.005, 0.012))
+            for x, y in zip(curve_x, curve_y):
+                page.mouse.move(float(x), float(y))
+                time.sleep(0.008)
+        except Exception:
+            page.mouse.move(target_x, target_y)
 
     @staticmethod
-    def human_type(page, text: str):
-        """Gõ chữ mô phỏng nhịp người thật: có độ trễ phím và thỉnh thoảng gõ nhầm"""
+    def human_type(page, target_locator, text: str):
+        target_locator.focus()
+        time.sleep(0.3)
         for char in text:
-            if random.random() < 0.03 and char.isalpha():
-                typo = chr(ord(char) + 1)
-                page.keyboard.type(typo, delay=random.randint(70, 140))
-                time.sleep(random.uniform(0.2, 0.35))
-                page.keyboard.press("Backspace")
-                time.sleep(random.uniform(0.1, 0.25))
-
-            page.keyboard.type(char, delay=random.randint(60, 160))
+            target_locator.press_sequentially(char, delay=random.randint(60, 140))
             if char in [",", ".", " ", "!"]:
-                time.sleep(random.uniform(0.2, 0.45))
+                time.sleep(random.uniform(0.15, 0.35))
 
     @staticmethod
     def human_scroll(page):
-        """Cuộn trang vi phân có quán tính, ngẫu nhiên cuộn ngược lên lại"""
-        scroll_steps = random.randint(4, 7)
-        direction = 1 if random.random() > 0.15 else -1
-        distance = random.randint(350, 650) * direction
-
-        for _ in range(scroll_steps):
-            step = distance / scroll_steps
-            page.mouse.wheel(0, step)
-            time.sleep(random.uniform(0.05, 0.12))
-        time.sleep(random.uniform(1.5, 3.2))
+        scroll_distance = random.randint(400, 750)
+        page.mouse.wheel(0, scroll_distance)
+        time.sleep(random.uniform(1.8, 3.2))
 
 # ==========================================
 # 2. XỬ LÝ TRÍ TUỆ NHÂN TẠO (GEMINI)
@@ -81,7 +68,6 @@ class HumanSimulator:
 class AIEngine:
     @staticmethod
     def analyze_and_react(post_content: str, api_key: str = None) -> tuple:
-        """Đọc nội dung bài viết và phân loại cảm xúc + sinh nội dung bình luận ngắn"""
         if not post_content or len(post_content.strip()) < 10:
             return ("LIKE", "")
 
@@ -95,8 +81,8 @@ class AIEngine:
                 "Bạn là chính chủ Facebook cá nhân tại Việt Nam. Đọc bài viết sau:\n"
                 f"\"{post_content[:400]}\"\n\n"
                 "Nhiệm vụ:\n"
-                "1. Chọn 1 cảm xúc phù hợp nhất: LIKE, LOVE, CARE, HAHA, WOW, SAD.\n"
-                "2. Viết 1 bình luận ngắn (dưới 10 từ) tự nhiên, lịch sự như bạn bè thân quen.\n"
+                "1. Chọn 1 cảm xúc phù hợp: LIKE, LOVE, CARE, HAHA, WOW, SAD.\n"
+                "2. Viết 1 bình luận ngắn (dưới 10 từ) tự nhiên, lịch sự như bạn bè quen biết.\n"
                 "3. NẾU bài viết tiêu cực, tang lễ, tai nạn, chửi bới, bán hàng spam thì bình luận trả về: [SKIP]\n"
                 "Định dạng trả về đúng 2 dòng:\n"
                 "REACTION: <tên_cảm_xúc>\n"
@@ -122,13 +108,13 @@ class AIEngine:
             return ("LIKE", "Bài viết rất ý nghĩa ạ!")
 
 # ==========================================
-# 3. GIAO DIỆN PHẦN MỀM (CUSTOMTKINTER)
+# 3. GIAO DIỆN PHẦN MỀM
 # ==========================================
 class ProBotApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Facebook AI Smart Assistant - Personal Edition")
+        self.title("Facebook AI Smart Assistant - Optimized Engine")
         self.geometry("900x720")
         self.resizable(False, False)
 
@@ -145,9 +131,7 @@ class ProBotApp(ctk.CTk):
         self.setup_right_panel()
 
     def setup_left_panel(self):
-        ctk.CTkLabel(
-            self.left_panel, text="CẤU HÌNH TƯƠNG TÁC", font=ctk.CTkFont(size=16, weight="bold")
-        ).pack(anchor="w", padx=10, pady=(10, 15))
+        ctk.CTkLabel(self.left_panel, text="CẤU HÌNH TƯƠNG TÁC", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=(10, 15))
 
         ctk.CTkLabel(self.left_panel, text="Tên Profile (Lưu cookie/session):").pack(anchor="w", padx=10)
         self.entry_profile = ctk.CTkEntry(self.left_panel, placeholder_text="my_main_account")
@@ -190,15 +174,11 @@ class ProBotApp(ctk.CTk):
         self.sw_history.select()
         self.sw_history.pack(anchor="w", padx=10, pady=5)
 
-        self.btn_run = ctk.CTkButton(
-            self.left_panel, text="Bắt đầu Tương tác", height=42, command=self.toggle_task, fg_color="#107C41"
-        )
+        self.btn_run = ctk.CTkButton(self.left_panel, text="Bắt đầu Tương tác", height=42, command=self.toggle_task, fg_color="#107C41")
         self.btn_run.pack(fill="x", padx=10, pady=(20, 15))
 
     def setup_right_panel(self):
-        ctk.CTkLabel(
-            self.right_panel, text="NHẬT KÝ THAO TÁC THỜI GIAN THỰC", font=ctk.CTkFont(size=14, weight="bold")
-        ).pack(anchor="w", padx=15, pady=(15, 8))
+        ctk.CTkLabel(self.right_panel, text="NHẬT KÝ THAO TÁC THỜI GIAN THỰC", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=15, pady=(15, 8))
         self.console = ctk.CTkTextbox(self.right_panel, font=("Consolas", 12))
         self.console.pack(fill="both", expand=True, padx=15, pady=(0, 15))
 
@@ -239,10 +219,10 @@ class ProBotApp(ctk.CTk):
         else:
             self.is_running = False
             self.btn_run.configure(text="Bắt đầu Tương tác", fg_color="#107C41")
-            self.log("Đang gửi yêu cầu dừng an toàn...")
+            self.log("Đang dừng tác vụ...")
 
     # ==========================================
-    # 4. ENGINE TỰ ĐỘNG HÓA VẬN HÀNH
+    # 4. ENGINE TỰ ĐỘNG HÓA TỐI ƯU ỔN ĐỊNH
     # ==========================================
     def bot_core(self):
         profile = self.entry_profile.get().strip() or "my_main_account"
@@ -275,17 +255,25 @@ class ProBotApp(ctk.CTk):
 
                 target_url = "https://www.facebook.com/?filter=friends&sk=h_chr" if cfg_friends else "https://www.facebook.com/"
                 self.log(f"Đang điều hướng đến: {target_url}")
-                page.goto(target_url, timeout=60000)
-                time.sleep(random.uniform(4.0, 6.0))
+                page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+                time.sleep(5)
 
                 completed = 0
 
                 while self.is_running and completed < max_targets:
+                    # Tự đóng các dialog thông báo phiền toái nếu có
+                    try:
+                        dialog_close = page.locator('div[role="dialog"] div[aria-label*="Đóng"], div[role="dialog"] div[aria-label*="Close"]').first
+                        if dialog_close.is_visible(timeout=1000):
+                            dialog_close.click()
+                    except Exception:
+                        pass
+
                     HumanSimulator.human_scroll(page)
 
-                    articles = page.query_selector_all('div[role="feed"] div[role="article"], div[role="article"]')
+                    articles = page.locator('div[role="feed"] div[role="article"], div[role="article"]').all()
                     if not articles:
-                        time.sleep(2.5)
+                        time.sleep(2)
                         continue
 
                     target_post = None
@@ -293,37 +281,146 @@ class ProBotApp(ctk.CTk):
                     post_sig = ""
 
                     for art in articles:
-                        raw_text = art.inner_text().strip()
-                        if len(raw_text) < 25:
-                            continue
-
-                        sig = raw_text[:60].replace("\n", " ")
-                        if cfg_history and sig in self.history:
-                            continue
-
-                        if cfg_filter:
-                            if "Được tài trợ" in raw_text or "Sponsored" in raw_text:
+                        try:
+                            if not art.is_visible():
                                 continue
-                            if "Gợi ý cho bạn" in raw_text or "Suggested for you" in raw_text:
+                            raw_text = art.inner_text().strip()
+                            if len(raw_text) < 25:
                                 continue
 
-                        target_post = art
-                        post_text = raw_text
-                        post_sig = sig
-                        break
+                            sig = raw_text[:60].replace("\n", " ")
+                            if cfg_history and sig in self.history:
+                                continue
+
+                            if cfg_filter:
+                                if any(kw in raw_text for kw in ["Được tài trợ", "Sponsored", "Gợi ý cho bạn", "Suggested for you"]):
+                                    continue
+
+                            target_post = art
+                            post_text = raw_text
+                            post_sig = sig
+                            break
+                        except Exception:
+                            continue
 
                     if not target_post:
-                        self.log("Đang cuộn tìm bài viết chưa tương tác...")
+                        self.log("Đang cuộn tìm bài viết phù hợp...")
                         continue
 
-                    target_post.scroll_into_view_if_needed()
-                    time.sleep(random.uniform(1.0, 2.0))
+                    try:
+                        target_post.scroll_into_view_if_needed(timeout=3000)
+                    except Exception:
+                        pass
+                    time.sleep(1.5)
 
                     # 1. Đọc bài viết (Dwell Time)
                     if cfg_dwell:
                         words = len(post_text.split())
-                        read_time = min(max(words / 4.0, 3.5), 10.0)
-                        self.log(f"Đang dừng đọc nội dung bài viết ({int(read_time)}s)...")
+                        read_time = min(max(words / 4.0, 3.0), 8.0)
+                        self.log(f"Đang đọc nội dung bài viết ({int(read_time)}s)...")
                         time.sleep(read_time)
 
-                    # 2. Ph
+                    # 2. Phân tích nội dung qua AI
+                    reaction_type = "LOVE"
+                    comment_text = ""
+                    if cfg_smart_react or cfg_comment:
+                        self.log("AI đang phân tích bài viết...")
+                        reaction_type, comment_text = AIEngine.analyze_and_react(post_text, api_key)
+
+                    # 3. Thả Cảm Xúc / Like
+                    reacted = False
+                    like_btn = target_post.locator('div[role="button"][aria-label*="Thích"], div[role="button"][aria-label*="Like"]').first
+
+                    if like_btn.is_visible(timeout=2000):
+                        box = like_btn.bounding_box()
+                        if box:
+                            btn_x = box["x"] + box["width"] / 2
+                            btn_y = box["y"] + box["height"] / 2
+                            HumanSimulator.move_mouse_naturally(page, btn_x, btn_y)
+
+                            if cfg_smart_react and reaction_type != "LIKE":
+                                try:
+                                    like_btn.hover(timeout=2000)
+                                    time.sleep(1.0)
+
+                                    react_map = {
+                                        "LOVE": ['div[aria-label*="Yêu thích"]', 'div[aria-label*="Love"]'],
+                                        "CARE": ['div[aria-label*="Thương thương"]', 'div[aria-label*="Care"]'],
+                                        "HAHA": ['div[aria-label*="Haha"]'],
+                                        "WOW":  ['div[aria-label*="Wow"]'],
+                                        "SAD":  ['div[aria-label*="Buồn"]', 'div[aria-label*="Sad"]']
+                                    }
+                                    selectors = react_map.get(reaction_type, react_map["LOVE"])
+                                    
+                                    for sel in selectors:
+                                        icon = page.locator(sel).first
+                                        if icon.is_visible(timeout=1000):
+                                            icon.click(timeout=1500)
+                                            reacted = True
+                                            self.log(f"-> Đã thả biểu cảm [{reaction_type}] thành công!")
+                                            break
+                                except Exception:
+                                    pass
+
+                            if not reacted:
+                                like_btn.click()
+                                reacted = True
+                                self.log("-> Đã bấm Thích bài viết thành công!")
+
+                    # 4. Bình Luận (Cơ chế Smart Input Verification)
+                    if cfg_comment and comment_text and reacted:
+                        self.log(f"Chuẩn bị bình luận: \"{comment_text}\"")
+
+                        # Click nút bình luận
+                        cmt_btn = target_post.locator('div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"]').first
+                        if cmt_btn.is_visible(timeout=2000):
+                            cmt_btn.click()
+                        else:
+                            target_post.click()
+                            page.keyboard.press("c")
+
+                        time.sleep(1.5)
+
+                        # Tìm chính xác ô nhập bình luận
+                        input_box = target_post.locator('div[role="textbox"][contenteditable="true"]').first
+                        if not input_box.is_visible(timeout=1500):
+                            input_box = page.locator('form div[role="textbox"][contenteditable="true"]').first
+
+                        if input_box.is_visible(timeout=2000):
+                            try:
+                                input_box.scroll_into_view_if_needed()
+                                input_box.click()
+                                time.sleep(0.5)
+
+                                HumanSimulator.human_type(page, input_box, comment_text)
+                                time.sleep(1.0)
+
+                                page.keyboard.press("Enter")
+                                self.log(f"-> Đã gửi bình luận: \"{comment_text}\"")
+                                time.sleep(random.uniform(5.0, 8.0))
+                            except Exception as ex:
+                                self.log(f"Lỗi khi gửi bình luận: {ex}")
+                        else:
+                            self.log("Không tìm thấy ô nhập bình luận hợp lệ, bỏ qua bài này.")
+
+                    if reacted:
+                        completed += 1
+                        if cfg_history:
+                            self.save_history(post_sig, reaction_type, comment_text)
+
+                        sleep_gap = random.uniform(15.0, 30.0)
+                        self.log(f"Tiến độ ({completed}/{max_targets}). Nghỉ an toàn {int(sleep_gap)}s...")
+                        time.sleep(sleep_gap)
+
+                self.log("Đã hoàn tất phiên làm việc trơn tru!")
+                context.close()
+
+        except Exception as e:
+            self.log(f"Lỗi vận hành: {e}")
+        finally:
+            self.is_running = False
+            self.btn_run.configure(text="Bắt đầu Tương tác", fg_color="#107C41")
+
+if __name__ == "__main__":
+    app = ProBotApp()
+    app.mainloop()
