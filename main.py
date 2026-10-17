@@ -30,8 +30,8 @@ class HumanSimulator:
     @classmethod
     def move_mouse_naturally(cls, page, target_x, target_y):
         try:
-            start_x = random.randint(200, 500)
-            start_y = random.randint(200, 500)
+            start_x = random.randint(100, 300)
+            start_y = random.randint(150, 400)
 
             ctrl_x1 = start_x + (target_x - start_x) * random.uniform(0.2, 0.4)
             ctrl_y1 = start_y + (target_y - start_y) * random.uniform(0.1, 0.3)
@@ -58,7 +58,7 @@ class HumanSimulator:
 
     @staticmethod
     def human_scroll(page):
-        scroll_distance = random.randint(400, 750)
+        scroll_distance = random.randint(350, 650)
         page.mouse.wheel(0, scroll_distance)
         time.sleep(random.uniform(1.8, 3.2))
 
@@ -114,7 +114,7 @@ class ProBotApp(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Facebook AI Smart Assistant - Fixed Edition")
+        self.title("Facebook AI Smart Assistant - Mobile Engine")
         self.geometry("900x720")
         self.resizable(False, False)
 
@@ -131,7 +131,7 @@ class ProBotApp(ctk.CTk):
         self.setup_right_panel()
 
     def setup_left_panel(self):
-        ctk.CTkLabel(self.left_panel, text="CẤU HÌNH TƯƠNG TÁC", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=(10, 15))
+        ctk.CTkLabel(self.left_panel, text="CẤU HÌNH TƯƠNG TÁC (MOBILE)", font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=10, pady=(10, 15))
 
         ctk.CTkLabel(self.left_panel, text="Tên Profile (Lưu cookie/session):").pack(anchor="w", padx=10)
         self.entry_profile = ctk.CTkEntry(self.left_panel, placeholder_text="my_main_account")
@@ -149,10 +149,6 @@ class ProBotApp(ctk.CTk):
         self.slider_likes.pack(fill="x", padx=10, pady=(2, 15))
 
         ctk.CTkLabel(self.left_panel, text="CHẾ ĐỘ TÙY CHỌN", font=ctk.CTkFont(size=14, weight="bold")).pack(anchor="w", padx=10, pady=(5, 5))
-
-        self.sw_friends = ctk.CTkSwitch(self.left_panel, text="Ưu tiên bảng tin Bạn bè (Friends Feed)")
-        self.sw_friends.select()
-        self.sw_friends.pack(anchor="w", padx=10, pady=5)
 
         self.sw_smart_react = ctk.CTkSwitch(self.left_panel, text="Thả cảm xúc thông minh (Love, Care, Haha...)")
         self.sw_smart_react.select()
@@ -222,14 +218,13 @@ class ProBotApp(ctk.CTk):
             self.log("Đang dừng tác vụ...")
 
     # ==========================================
-    # 4. ENGINE TỰ ĐỘNG HÓA CHUẨN XÁC
+    # 4. ENGINE TỰ ĐỘNG HÓA TRÊN M.FACEBOOK.COM
     # ==========================================
     def bot_core(self):
         profile = self.entry_profile.get().strip() or "my_main_account"
         api_key = self.entry_key.get().strip()
         max_targets = int(self.slider_likes.get())
 
-        cfg_friends = self.sw_friends.get() == 1
         cfg_smart_react = self.sw_smart_react.get() == 1
         cfg_comment = self.sw_comment.get() == 1
         cfg_dwell = self.sw_dwell.get() == 1
@@ -239,7 +234,8 @@ class ProBotApp(ctk.CTk):
         profile_dir = os.path.abspath(f"./profiles/{profile}")
         os.makedirs(profile_dir, exist_ok=True)
 
-        self.log(f"Khởi động profile: {profile} | Mục tiêu: {max_targets} bài")
+        self.log(f"Khởi động profile: {profile} trên nền tảng m.facebook.com")
+        self.log(f"Mục tiêu: {max_targets} bài viết.")
 
         try:
             with sync_playwright() as p:
@@ -247,31 +243,32 @@ class ProBotApp(ctk.CTk):
                     user_data_dir=profile_dir,
                     channel="msedge",
                     headless=False,
-                    viewport={"width": 1280, "height": 850},
+                    # Giả lập kích thước màn hình thiết bị di động chuẩn
+                    viewport={"width": 450, "height": 850},
+                    user_agent="Mozilla/5.0 (Linux; Android 13; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Mobile Safari/537.36",
                     args=["--disable-blink-features=AutomationControlled"]
                 )
 
                 page = context.new_page()
-
-                target_url = "https://www.facebook.com/?filter=friends&sk=h_chr" if cfg_friends else "https://www.facebook.com/"
-                self.log(f"Đang mở trang: {target_url}")
-                page.goto(target_url, timeout=60000, wait_until="domcontentloaded")
+                self.log("Đang truy cập https://m.facebook.com/...")
+                page.goto("https://m.facebook.com/", timeout=60000, wait_until="domcontentloaded")
                 time.sleep(5)
 
                 completed = 0
 
                 while self.is_running and completed < max_targets:
-                    # Đóng dialog popup làm phiền nếu có
+                    # Bỏ qua các popup ứng dụng Facebook nếu xuất hiện
                     try:
-                        dialog_close = page.locator('div[role="dialog"] div[aria-label*="Đóng"], div[role="dialog"] div[aria-label*="Close"]').first
-                        if dialog_close.is_visible(timeout=500):
-                            dialog_close.click()
+                        close_btn = page.locator('div[aria-label*="Đóng"], div[aria-label*="Close"], div[data-sigil="m-overlay-close"]').first
+                        if close_btn.is_visible(timeout=500):
+                            close_btn.click()
                     except Exception:
                         pass
 
                     HumanSimulator.human_scroll(page)
 
-                    articles = page.locator('div[role="feed"] div[role="article"], div[role="article"]').all()
+                    # Trên bản m.facebook, các bài viết nằm trong div[role="article"] hoặc article
+                    articles = page.locator('article, div[role="article"], div[data-tracking-duration-id]').all()
                     if not articles:
                         time.sleep(2)
                         continue
@@ -282,43 +279,36 @@ class ProBotApp(ctk.CTk):
                     like_btn = None
                     cmt_btn = None
 
-                    # Quét và định vị bài viết hợp lệ
                     for art in articles:
                         try:
                             if not art.is_visible():
                                 continue
 
-                            # 1. Bắt buộc tìm thanh công cụ chính (chứa cả Like và Comment)
-                            action_bar = art.locator('div[role="toolbar"], div[role="group"]').filter(
-                                has=art.locator('div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"]')
+                            # Tìm nút Thích chính của bài viết
+                            current_like_btn = art.locator(
+                                'div[role="button"][aria-label*="Thích"], div[role="button"][aria-label*="Like"], '
+                                'a[role="button"][aria-label*="Thích"], a[role="button"][aria-label*="Like"]'
                             ).first
 
-                            if not action_bar.is_visible(timeout=500):
+                            if not current_like_btn.is_visible(timeout=400):
                                 continue
 
-                            # 2. Tìm nút Like NẰM TRONG thanh công cụ chính đó
-                            current_like_btn = action_bar.locator('div[role="button"][aria-label*="Thích"], div[role="button"][aria-label*="Like"]').first
-                            if not current_like_btn.is_visible(timeout=500):
-                                continue
-
-                            # 3. Kiểm tra xem bài này ĐÃ TỪNG LIKE CHƯA
+                            # Kiểm tra xem bài đã được thả cảm xúc chưa (tránh unlike)
                             is_pressed = current_like_btn.get_attribute("aria-pressed")
-                            if is_pressed == "true":
+                            aria_label = current_like_btn.get_attribute("aria-label") or ""
+                            if is_pressed == "true" or "Gỡ" in aria_label or "Remove" in aria_label:
                                 continue
 
                             raw_text = art.inner_text().strip()
-                            if len(raw_text) < 20:
+                            if len(raw_text) < 15:
                                 continue
 
-                            # 4. Lấy link URL hoặc chữ ký định danh bài viết
-                            link_elem = art.locator('a[href*="/posts/"], a[href*="/permalink/"], a[href*="fbid="]').first
-                            href = link_elem.get_attribute("href") if link_elem.is_visible(timeout=300) else ""
-                            sig = href.split("?")[0] if href else raw_text[:80].replace("\n", " ")
-
+                            # Định danh chống lặp
+                            sig = raw_text[:80].replace("\n", " ")
                             if cfg_history and sig in self.history:
                                 continue
 
-                            # 5. Lọc bài quảng cáo / gợi ý
+                            # Lọc quảng cáo
                             if cfg_filter:
                                 if any(kw in raw_text for kw in ["Được tài trợ", "Sponsored", "Gợi ý cho bạn", "Suggested for you"]):
                                     continue
@@ -327,36 +317,41 @@ class ProBotApp(ctk.CTk):
                             post_text = raw_text
                             post_sig = sig
                             like_btn = current_like_btn
-                            cmt_btn = action_bar.locator('div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"]').first
+                            
+                            # Nút mở ô bình luận
+                            cmt_btn = art.locator(
+                                'div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"], '
+                                'a[role="button"][aria-label*="Bình luận"], a[role="button"][aria-label*="Comment"]'
+                            ).first
                             break
                         except Exception:
                             continue
 
                     if not target_post or not like_btn:
-                        self.log("Đang cuộn tìm bài viết mới chưa tương tác...")
+                        self.log("Đang lướt tìm bài viết mới...")
                         continue
 
                     try:
                         target_post.scroll_into_view_if_needed(timeout=3000)
                     except Exception:
                         pass
-                    time.sleep(1.5)
+                    time.sleep(1.2)
 
-                    # 1. Đọc bài viết (Dwell Time)
+                    # 1. Dwell Time
                     if cfg_dwell:
                         words = len(post_text.split())
-                        read_time = min(max(words / 4.0, 3.0), 8.0)
-                        self.log(f"Đang đọc nội dung bài viết ({int(read_time)}s)...")
+                        read_time = min(max(words / 4.0, 2.5), 7.0)
+                        self.log(f"Đang dừng đọc bài viết ({int(read_time)}s)...")
                         time.sleep(read_time)
 
-                    # 2. AI phân tích nội dung
+                    # 2. AI phân tích ngữ cảnh
                     reaction_type = "LOVE"
                     comment_text = ""
                     if cfg_smart_react or cfg_comment:
-                        self.log("AI đang phân tích ngữ cảnh bài viết...")
+                        self.log("AI đang đọc ngữ cảnh bài viết...")
                         reaction_type, comment_text = AIEngine.analyze_and_react(post_text, api_key)
 
-                    # 3. Thao tác thả Cảm xúc / Thích vào chính xác bài viết
+                    # 3. Thả Cảm Xúc / Thích
                     reacted = False
                     box = like_btn.bounding_box()
                     if box:
@@ -366,20 +361,24 @@ class ProBotApp(ctk.CTk):
 
                         if cfg_smart_react and reaction_type != "LIKE":
                             try:
-                                like_btn.hover(timeout=2000)
-                                time.sleep(1.0)
+                                # Nhấn giữ chuột (Long press) để mở thanh cảm xúc trên giao diện mobile
+                                page.mouse.move(btn_x, btn_y)
+                                page.mouse.down()
+                                time.sleep(1.2) # Giữ hơn 1 giây để bảng biểu cảm bung ra
+                                page.mouse.up()
+                                time.sleep(0.8)
 
                                 react_map = {
-                                    "LOVE": ['div[aria-label*="Yêu thích"]', 'div[aria-label*="Love"]'],
-                                    "CARE": ['div[aria-label*="Thương thương"]', 'div[aria-label*="Care"]'],
-                                    "HAHA": ['div[aria-label*="Haha"]'],
-                                    "WOW":  ['div[aria-label*="Wow"]'],
-                                    "SAD":  ['div[aria-label*="Buồn"]', 'div[aria-label*="Sad"]']
+                                    "LOVE": ['div[aria-label*="Yêu thích"]', 'div[aria-label*="Love"]', 'span[aria-label*="Love"]'],
+                                    "CARE": ['div[aria-label*="Thương thương"]', 'div[aria-label*="Care"]', 'span[aria-label*="Care"]'],
+                                    "HAHA": ['div[aria-label*="Haha"]', 'span[aria-label*="Haha"]'],
+                                    "WOW":  ['div[aria-label*="Wow"]', 'span[aria-label*="Wow"]'],
+                                    "SAD":  ['div[aria-label*="Buồn"]', 'div[aria-label*="Sad"]', 'span[aria-label*="Sad"]']
                                 }
                                 for sel in react_map.get(reaction_type, react_map["LOVE"]):
                                     icon = page.locator(sel).first
-                                    if icon.is_visible(timeout=1000):
-                                        icon.click(timeout=1500)
+                                    if icon.is_visible(timeout=800):
+                                        icon.click(timeout=1000)
                                         reacted = True
                                         self.log(f"-> Đã thả biểu cảm [{reaction_type}] cho bài viết!")
                                         break
@@ -391,22 +390,59 @@ class ProBotApp(ctk.CTk):
                             reacted = True
                             self.log("-> Đã Thích bài viết thành công!")
 
-                    # 4. Thao tác Bình luận
+                    # 4. Bình luận trên Mobile
                     if cfg_comment and comment_text and reacted:
                         self.log(f"Chuẩn bị bình luận: \"{comment_text}\"")
-                        if cmt_btn and cmt_btn.is_visible(timeout=2000):
+                        if cmt_btn and cmt_btn.is_visible(timeout=1500):
                             cmt_btn.click()
-                        else:
-                            target_post.click()
-                            page.keyboard.press("c")
+                            time.sleep(1.5)
 
-                        time.sleep(1.5)
-
-                        # Bắt khung nhập liệu bình luận
-                        input_box = target_post.locator('div[role="textbox"][contenteditable="true"]').first
+                        # Trên m.facebook, ô nhập bình luận là textarea hoặc div[role="textbox"]
+                        input_box = target_post.locator('textarea, div[role="textbox"][contenteditable="true"]').first
                         if not input_box.is_visible(timeout=1500):
-                            input_box = page.locator('form div[role="textbox"][contenteditable="true"]').first
+                            input_box = page.locator('textarea, div[role="textbox"][contenteditable="true"]').first
 
                         if input_box.is_visible(timeout=2000):
                             try:
-                                input_box.scroll_into_view_
+                                input_box.scroll_into_view_if_needed()
+                                input_box.click()
+                                time.sleep(0.5)
+
+                                HumanSimulator.human_type(page, input_box, comment_text)
+                                time.sleep(1.0)
+
+                                # Tìm nút Đăng/Gửi hoặc ấn Enter
+                                submit_btn = page.locator('div[aria-label*="Đăng"], div[aria-label*="Post"], button:has-text("Đăng"), button:has-text("Post")').first
+                                if submit_btn.is_visible(timeout=1000):
+                                    submit_btn.click()
+                                else:
+                                    page.keyboard.press("Enter")
+
+                                self.log(f"-> Đã gửi bình luận: \"{comment_text}\"")
+                                time.sleep(random.uniform(5.0, 8.0))
+                            except Exception as ex:
+                                self.log(f"Lỗi khi gửi bình luận: {ex}")
+                        else:
+                            self.log("Không thấy ô nhập bình luận, bỏ qua bài này.")
+
+                    if reacted:
+                        completed += 1
+                        if cfg_history:
+                            self.save_history(post_sig, reaction_type, comment_text)
+
+                        sleep_gap = random.uniform(15.0, 30.0)
+                        self.log(f"Tiến độ ({completed}/{max_targets}). Nghỉ an toàn {int(sleep_gap)}s...")
+                        time.sleep(sleep_gap)
+
+                self.log("Đã hoàn thành phiên làm việc thành công!")
+                context.close()
+
+        except Exception as e:
+            self.log(f"Lỗi vận hành: {e}")
+        finally:
+            self.is_running = False
+            self.btn_run.configure(text="Bắt đầu Tương tác", fg_color="#107C41")
+
+if __name__ == "__main__":
+    app = ProBotApp()
+    app.mainloop()
