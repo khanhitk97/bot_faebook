@@ -48,6 +48,37 @@ class HumanSimulator:
         except Exception:
             page.mouse.move(target_x, target_y)
 
+    @classmethod
+    def simulate_reading(cls, page, container_elem, text: str, log_callback):
+        """Giả vờ đọc bài viết: tính thời gian theo độ dài và di chuyển chuột nhẹ rà soát nội dung"""
+        words = len(text.split())
+        # Thời gian đọc trung bình từ 3.5 đến 8.0 giây
+        read_time = min(max(words / 4.0, 3.5), 8.0)
+        log_callback(f"Đang dừng lại đọc bài viết ({int(read_time)}s)...")
+
+        # Thử bấm 'Xem thêm' nếu bài dài có nút rút gọn
+        try:
+            see_more = container_elem.locator(
+                'div[role="button"]:has-text("Xem thêm"), div[role="button"]:has-text("See more"), '
+                'span:has-text("Xem thêm"), span:has-text("See more")'
+            ).first
+            if see_more.is_visible(timeout=500):
+                see_more.click()
+                time.sleep(random.uniform(0.8, 1.5))
+        except Exception:
+            pass
+
+        # Chia nhỏ thời gian đọc để rà chuột nhẹ
+        box = container_elem.bounding_box()
+        start_time = time.time()
+        while time.time() - start_time < read_time:
+            if box:
+                # Di chuột quanh vùng thân bài viết
+                rand_x = box["x"] + random.uniform(box["width"] * 0.2, box["width"] * 0.8)
+                rand_y = box["y"] + random.uniform(box["height"] * 0.2, box["height"] * 0.6)
+                cls.move_mouse_naturally(page, rand_x, rand_y)
+            time.sleep(random.uniform(1.2, 2.0))
+
     @staticmethod
     def human_type(page, target_locator, text: str):
         target_locator.focus()
@@ -59,69 +90,12 @@ class HumanSimulator:
 
     @staticmethod
     def human_scroll(page):
-        scroll_distance = random.randint(350, 650)
+        scroll_distance = random.randint(380, 680)
         page.mouse.wheel(0, scroll_distance)
-        time.sleep(random.uniform(1.8, 3.2))
+        time.sleep(random.uniform(2.0, 3.2))
 
 # ==========================================
-# 2. BỘ KIỂM TRA ĐA TẦNG CHỐNG TRÙNG LẶP
-# ==========================================
-class InteractionChecker:
-    @staticmethod
-    def extract_unique_id(post_element, raw_text: str) -> str:
-        """Trích xuất ID số duy nhất của bài viết trên giao diện mobile"""
-        try:
-            links = post_element.locator(
-                'a[href*="/story.php"], a[href*="/permalink.php"], a[href*="fbid="], a[href*="/posts/"]'
-            ).all()
-            for link in links:
-                href = link.get_attribute("href") or ""
-                fbid_match = re.search(r'(?:fbid=|story_fbid=)(\d+)', href)
-                if fbid_match:
-                    return f"fb_id_{fbid_match.group(1)}"
-
-                post_match = re.search(r'/posts/(\d+)', href)
-                if post_match:
-                    return f"fb_id_{post_match.group(1)}"
-
-            post_id_attr = post_element.get_attribute("data-ft") or post_element.get_attribute("id") or ""
-            if post_id_attr:
-                num_match = re.search(r'(\d{8,})', post_id_attr)
-                if num_match:
-                    return f"fb_id_{num_match.group(1)}"
-        except Exception:
-            pass
-
-        clean_text = "".join(raw_text.split())[:100]
-        return f"hash_{abs(hash(clean_text))}"
-
-    @staticmethod
-    def is_already_interacted_on_dom(like_button) -> bool:
-        """Kiểm tra trực quan trạng thái nút Like trên DOM xem đã thả cảm xúc chưa"""
-        try:
-            is_pressed = like_button.get_attribute("aria-pressed")
-            if is_pressed and is_pressed.lower() == "true":
-                return True
-
-            aria_label = like_button.get_attribute("aria-label") or ""
-            text_content = like_button.inner_text().strip()
-
-            interacted_labels = ["Gỡ", "Bỏ thích", "Unlike", "Đã thích", "Đã bày tỏ cảm xúc", "Remove"]
-            for label in interacted_labels:
-                if label.lower() in aria_label.lower() or label.lower() in text_content.lower():
-                    return True
-
-            has_active_reaction = like_button.locator(
-                'span[data-sigil="reactions-reaction-present"], div[aria-label*="Yêu thích"], div[aria-label*="Haha"], div[aria-label*="Thương thương"]'
-            ).count() > 0
-            if has_active_reaction:
-                return True
-        except Exception:
-            pass
-        return False
-
-# ==========================================
-# 3. XỬ LÝ TRÍ TUỆ NHÂN TẠO (GEMINI)
+# 2. XỬ LÝ TRÍ TUỆ NHÂN TẠO (GEMINI)
 # ==========================================
 class AIEngine:
     @staticmethod
@@ -140,7 +114,7 @@ class AIEngine:
                 f"\"{post_content[:400]}\"\n\n"
                 "Nhiệm vụ:\n"
                 "1. Chọn 1 cảm xúc phù hợp: LIKE, LOVE, CARE, HAHA, WOW, SAD.\n"
-                "2. Viết 1 bình luận ngắn (dưới 10 từ) tự nhiên, lịch sự như bạn bè quen biết.\n"
+                "2. Viết 1 bình luận ngắn (dưới 10 từ) tự nhiên, lịch sự như bạn bè thân quen.\n"
                 "3. NẾU bài viết tiêu cực, tang lễ, tai nạn, chửi bới, bán hàng spam thì bình luận trả về: [SKIP]\n"
                 "Định dạng trả về đúng 2 dòng:\n"
                 "REACTION: <tên_cảm_xúc>\n"
@@ -166,7 +140,7 @@ class AIEngine:
             return ("LIKE", "Bài viết rất ý nghĩa ạ!")
 
 # ==========================================
-# 4. GIAO DIỆN PHẦN MỀM (CUSTOMTKINTER)
+# 3. GIAO DIỆN PHẦN MỀM (CUSTOMTKINTER)
 # ==========================================
 class ProBotApp(ctk.CTk):
     def __init__(self):
@@ -216,10 +190,6 @@ class ProBotApp(ctk.CTk):
         self.sw_comment.select()
         self.sw_comment.pack(anchor="w", padx=10, pady=5)
 
-        self.sw_dwell = ctk.CTkSwitch(self.left_panel, text="Đọc bài theo độ dài chữ (Dwell Time)")
-        self.sw_dwell.select()
-        self.sw_dwell.pack(anchor="w", padx=10, pady=5)
-
         self.sw_filter = ctk.CTkSwitch(self.left_panel, text="Chặn bài Quảng cáo & bài spam")
         self.sw_filter.select()
         self.sw_filter.pack(anchor="w", padx=10, pady=5)
@@ -253,8 +223,8 @@ class ProBotApp(ctk.CTk):
                 return {}
         return {}
 
-    def save_history(self, post_id, reaction, comment):
-        self.history[post_id] = {
+    def save_history(self, post_sig, reaction, comment):
+        self.history[post_sig] = {
             "time": time.strftime("%Y-%m-%d %H:%M:%S"),
             "reaction": reaction,
             "comment": comment
@@ -276,7 +246,7 @@ class ProBotApp(ctk.CTk):
             self.log("Đang dừng tác vụ...")
 
     # ==========================================
-    # 5. ENGINE TỰ ĐỘNG HÓA VẬN HÀNH
+    # 4. ENGINE TỰ ĐỘNG HÓA VẬN HÀNH
     # ==========================================
     def bot_core(self):
         profile = self.entry_profile.get().strip() or "my_main_account"
@@ -285,7 +255,6 @@ class ProBotApp(ctk.CTk):
 
         cfg_smart_react = self.sw_smart_react.get() == 1
         cfg_comment = self.sw_comment.get() == 1
-        cfg_dwell = self.sw_dwell.get() == 1
         cfg_filter = self.sw_filter.get() == 1
         cfg_history = self.sw_history.get() == 1
 
@@ -307,107 +276,103 @@ class ProBotApp(ctk.CTk):
                 )
 
                 page = context.new_page()
-                self.log("Đang truy cập https://m.facebook.com/...")
+                self.log("Đang mở m.facebook.com...")
                 page.goto("https://m.facebook.com/", timeout=60000, wait_until="domcontentloaded")
                 time.sleep(5)
 
                 completed = 0
 
                 while self.is_running and completed < max_targets:
+                    # Đóng pop-up thông báo nếu có
                     try:
                         close_btn = page.locator('div[aria-label*="Đóng"], div[aria-label*="Close"], div[data-sigil="m-overlay-close"]').first
-                        if close_btn.is_visible(timeout=400):
+                        if close_btn.is_visible(timeout=300):
                             close_btn.click()
                     except Exception:
                         pass
 
                     HumanSimulator.human_scroll(page)
 
-                    articles = page.locator('article, div[role="article"], div[data-tracking-duration-id]').all()
-                    if not articles:
+                    # Quét tìm các nút Like khả dụng
+                    like_locators = page.locator(
+                        'div[role="button"][aria-label*="Thích"], div[role="button"][aria-label*="Like"], '
+                        'a[role="button"][aria-label*="Thích"], a[role="button"][aria-label*="Like"], '
+                        'div[data-sigil="touchable reactions-like-button"], '
+                        'div[role="button"]:has-text("Thích"), div[role="button"]:has-text("Like")'
+                    ).all()
+
+                    if not like_locators:
+                        self.log("Đang cuộn tìm nội dung trên bảng tin...")
                         time.sleep(2)
                         continue
 
-                    target_post = None
+                    chosen_like_btn = None
+                    container_elem = None
                     post_text = ""
-                    post_unique_id = ""
-                    like_btn = None
-                    cmt_btn = None
+                    post_sig = ""
 
-                    for art in articles:
+                    for btn in like_locators:
                         try:
-                            if not art.is_visible():
+                            if not btn.is_visible():
                                 continue
 
-                            # 1. Tìm nút Thích chính của bài viết
-                            current_like_btn = art.locator(
-                                'div[role="button"][aria-label*="Thích"], div[role="button"][aria-label*="Like"], '
-                                'a[role="button"][aria-label*="Thích"], a[role="button"][aria-label*="Like"]'
-                            ).first
-
-                            if not current_like_btn.is_visible(timeout=400):
+                            # Bỏ qua nếu đã Like rồi
+                            is_pressed = btn.get_attribute("aria-pressed")
+                            aria_label = btn.get_attribute("aria-label") or ""
+                            if is_pressed == "true" or any(w in aria_label.lower() for w in ["gỡ", "unlike", "bỏ thích", "đã thích"]):
                                 continue
 
-                            # 2. KIỂM TRA LỚP 1: Nút Like trên DOM đã được bấm chưa
-                            if InteractionChecker.is_already_interacted_on_dom(current_like_btn):
-                                continue
+                            # Tìm ngược lên khối chứa bài viết
+                            parent = btn.locator('xpath=ancestor::div[string-length(normalize-space(.)) > 50][position() <= 4]').first
+                            if not parent.is_visible(timeout=400):
+                                parent = btn.locator('xpath=../..')
 
-                            raw_text = art.inner_text().strip()
+                            raw_text = parent.inner_text().strip()
                             if len(raw_text) < 15:
                                 continue
 
-                            # 3. KIỂM TRA LỚP 2: Bóc tách ID số duy nhất
-                            unique_id = InteractionChecker.extract_unique_id(art, raw_text)
+                            clean_text = "".join(raw_text.split())[:70]
+                            sig = f"sig_{abs(hash(clean_text))}"
 
-                            # 4. KIỂM TRA LỚP 3: Đối chiếu với file history
-                            if cfg_history and unique_id in self.history:
+                            if cfg_history and sig in self.history:
                                 continue
 
-                            # 5. Lọc quảng cáo
                             if cfg_filter:
                                 if any(kw in raw_text for kw in ["Được tài trợ", "Sponsored", "Gợi ý cho bạn", "Suggested for you"]):
                                     continue
 
-                            target_post = art
+                            chosen_like_btn = btn
+                            container_elem = parent
                             post_text = raw_text
-                            post_unique_id = unique_id
-                            like_btn = current_like_btn
-
-                            cmt_btn = art.locator(
-                                'div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"], '
-                                'a[role="button"][aria-label*="Bình luận"], a[role="button"][aria-label*="Comment"]'
-                            ).first
+                            post_sig = sig
                             break
                         except Exception:
                             continue
 
-                    if not target_post or not like_btn:
-                        self.log("Đang cuộn tìm bài viết mới chưa tương tác...")
+                    if not chosen_like_btn or not container_elem:
+                        self.log("Đang cuộn tìm bài viết chưa tương tác...")
                         continue
 
+                    # Cuộn bài viết vào giữa màn hình
                     try:
-                        target_post.scroll_into_view_if_needed(timeout=3000)
+                        chosen_like_btn.scroll_into_view_if_needed(timeout=3000)
                     except Exception:
                         pass
-                    time.sleep(1.2)
+                    time.sleep(1.0)
 
-                    # Đọc bài viết (Dwell Time)
-                    if cfg_dwell:
-                        words = len(post_text.split())
-                        read_time = min(max(words / 4.0, 2.5), 7.0)
-                        self.log(f"Đang dừng đọc bài viết ({int(read_time)}s)...")
-                        time.sleep(read_time)
+                    # 1. KỊCH BẢN GIẢ VỜ ĐỌC BÀI VIẾT
+                    HumanSimulator.simulate_reading(page, container_elem, post_text, self.log)
 
-                    # Phân tích nội dung qua AI
+                    # 2. PHÂN TÍCH NỘI DUNG QUA AI
                     reaction_type = "LOVE"
                     comment_text = ""
                     if cfg_smart_react or cfg_comment:
-                        self.log("AI đang phân tích ngữ cảnh bài viết...")
+                        self.log("AI đang phân tích cảm xúc và nội dung...")
                         reaction_type, comment_text = AIEngine.analyze_and_react(post_text, api_key)
 
-                    # Thao tác thả Cảm xúc
+                    # 3. THAO TÁC THẢ CẢM XÚC / LIKE
                     reacted = False
-                    box = like_btn.bounding_box()
+                    box = chosen_like_btn.bounding_box()
                     if box:
                         btn_x = box["x"] + box["width"] / 2
                         btn_y = box["y"] + box["height"] / 2
@@ -415,7 +380,7 @@ class ProBotApp(ctk.CTk):
 
                         if cfg_smart_react and reaction_type != "LIKE":
                             try:
-                                # Nhấn giữ chuột (Long-press) để mở dock cảm xúc
+                                # Nhấn giữ chuột để kích hoạt dock cảm xúc
                                 page.mouse.move(btn_x, btn_y)
                                 page.mouse.down()
                                 time.sleep(1.2)
@@ -440,21 +405,23 @@ class ProBotApp(ctk.CTk):
                                 pass
 
                         if not reacted:
-                            like_btn.click()
+                            chosen_like_btn.click()
                             reacted = True
                             self.log("-> Đã Thích bài viết thành công!")
 
-                    # Thao tác Bình luận
+                    # 4. THAO TÁC BÌNH LUẬN
                     if cfg_comment and comment_text and reacted:
                         self.log(f"Chuẩn bị bình luận: \"{comment_text}\"")
-                        if cmt_btn and cmt_btn.is_visible(timeout=1500):
+
+                        cmt_btn = chosen_like_btn.locator('xpath=following-sibling::*[1]//div[@role="button"], xpath=following-sibling::div[@role="button"]').first
+                        if not cmt_btn.is_visible(timeout=500):
+                            cmt_btn = page.locator('div[role="button"][aria-label*="Bình luận"], div[role="button"][aria-label*="Comment"]').first
+
+                        if cmt_btn.is_visible(timeout=1000):
                             cmt_btn.click()
                             time.sleep(1.5)
 
-                        input_box = target_post.locator('textarea, div[role="textbox"][contenteditable="true"]').first
-                        if not input_box.is_visible(timeout=1500):
-                            input_box = page.locator('textarea, div[role="textbox"][contenteditable="true"]').first
-
+                        input_box = page.locator('textarea, div[role="textbox"][contenteditable="true"]').first
                         if input_box.is_visible(timeout=2000):
                             try:
                                 input_box.scroll_into_view_if_needed()
@@ -475,18 +442,18 @@ class ProBotApp(ctk.CTk):
                             except Exception as ex:
                                 self.log(f"Lỗi khi gửi bình luận: {ex}")
                         else:
-                            self.log("Không thấy ô nhập bình luận, bỏ qua bài này.")
+                            self.log("Không thấy ô nhập bình luận, bỏ qua phần comment.")
 
                     if reacted:
                         completed += 1
                         if cfg_history:
-                            self.save_history(post_unique_id, reaction_type, comment_text)
+                            self.save_history(post_sig, reaction_type, comment_text)
 
                         sleep_gap = random.uniform(15.0, 30.0)
                         self.log(f"Tiến độ ({completed}/{max_targets}). Nghỉ an toàn {int(sleep_gap)}s...")
                         time.sleep(sleep_gap)
 
-                self.log("Đã hoàn thành phiên làm việc thành công!")
+                self.log("Đã hoàn tất phiên tương tác thành công!")
                 context.close()
 
         except Exception as e:
